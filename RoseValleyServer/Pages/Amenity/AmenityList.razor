@@ -1,0 +1,145 @@
+﻿@page "/amenity"
+@using Models;
+@using Business.Repository.IRepository;
+@using System.IO;
+@using RoseValleyServer.Service.ExcellExport;
+@using NPOI.SS.UserModel;
+@using NPOI.XSSF.UserModel;
+@inject IAmenityRepository AmenityRepo;
+@inject RoseValleyServer.Service.IService.IFIleUpload Uploads;
+@inject IJSRuntime JsRun;
+@inject NavigationManager NavManager;
+@attribute [Authorize(Roles = CommonFiles.SD.Role_Admin)]
+
+<div class="row mt-4">
+    <div class="col-8">
+        <h4 class="card-title text-info">Rose Valley Villas удобства:</h4>
+    </div>
+    <div class="col-3 offset-1">
+        <NavLink href="amenity/create" class="btn-info form-control">Добави</NavLink>
+        <button class="btn btn-primary" @onclick="@(async ()=> {await GenerateExcel();})">Изтегли документ </button>
+    </div>
+</div>
+<div class="row mt-4">
+    <div class="col-md-12">
+        <table class="table table-bordered table-hover">
+            <thead>
+                <tr>
+                    <th>Име</th>
+                    <th>Описание</th>
+                    <th>Икона</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Amenities.Any())
+                {
+                    foreach (var amenity in Amenities)
+                    {
+                        <tr>
+                            <td>@amenity.Name</td>
+                            <td>@amenity.Description</td>
+                            <td><i>class = "@amenity.Icon"</i></td>
+
+                            <td>
+                                <NavLink href="@($"amenity/edit/{amenity.Id}")" class="btn btn-primary">Актуализиране</NavLink>
+                                <button class="btn btn-secondary" @onclick="() => HandleDelete(amenity.Id)">Изтриване</button>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="5">Няма добавени удобства.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+<DeleteConfirmationComponent IsParentProcessing="IsProssesing" ConfirmationChanged="ConfirmDelete"></DeleteConfirmationComponent>
+
+@code {
+    internal IEnumerable<AmenityDTO> Amenities { get; set; } = new List<AmenityDTO>();
+
+    private bool IsProssesing { get; set; } = false;
+    private int? DeletedAmenity { get; set; } = null;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        Amenities = await AmenityRepo.GetAllAmenities();
+    }
+
+    public async Task HandleDelete(int amenityId)
+    {
+        DeletedAmenity = amenityId;
+        await JsRun.InvokeVoidAsync("ShowDeleteConfirm");
+    }
+    public async Task ConfirmDelete(bool IsConfirmed)
+    {
+        IsProssesing = true;
+        if (IsConfirmed && DeletedAmenity != null)
+        {
+            try
+            {
+                var result = await AmenityRepo.DeleteAmenity(DeletedAmenity.Value);
+                await JsRun.ToastrSuccess("Данните са изтрити успешно!");
+            }
+            catch (Exception e)
+            {
+                await JsRun.ToastrError(e.Message);
+            }
+            Amenities = await AmenityRepo.GetAllAmenities();
+        }
+        await JsRun.InvokeVoidAsync("HideDeleteConfirm");
+        IsProssesing = false;
+    }
+
+    public async Task GenerateExcel()
+    {
+        var export = await AmenityRepo.GetAllAmenities();
+
+        IWorkbook workbook = new XSSFWorkbook();
+        var dataFormat = workbook.CreateDataFormat();
+        var dataStyle = workbook.CreateCellStyle();
+        dataStyle.DataFormat = dataFormat.GetFormat("MM/dd/yyyy HH:mm:ss");
+
+        ISheet worksheet = workbook.CreateSheet("Sheet1");
+
+        int rowNumber = 0;
+        IRow row = worksheet.CreateRow(rowNumber++);
+
+        ICell cell = row.CreateCell(0);
+        cell.SetCellValue("AmenityId");
+
+        cell = row.CreateCell(1);
+        cell.SetCellValue("Name");
+
+        cell = row.CreateCell(2);
+        cell.SetCellValue("Description");
+
+        foreach (var amen in export)
+        {
+            row = worksheet.CreateRow(rowNumber++);
+
+            cell = row.CreateCell(0);
+            cell.SetCellValue(amen.Id);
+
+            cell = row.CreateCell(1);
+            cell.SetCellValue(amen.Name);
+
+            cell = row.CreateCell(2);
+            cell.SetCellValue(amen.Description);
+        }
+
+        MemoryStream ms = new MemoryStream();
+        workbook.Write(ms);
+        byte[] bytes = ms.ToArray();
+        ms.Close();
+
+        await JsRun.SaveAsFileAsync("Amenity List", bytes, "application/vnd.ms-excel");
+    }
+}
+
+

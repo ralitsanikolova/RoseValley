@@ -1,0 +1,270 @@
+﻿@page "/room/create"
+@page "/room/edit/{Id:int}"
+@using Models;
+@using Business.Repository.IRepository;
+@using RoseValleyServer.Service.IService;
+@inject IRoomRepository RoomRepo;
+@inject IAmenityRepository AmenityRepo;
+@inject IRoomImageRepository ImageRepo;
+@inject IJSRuntime JSRun;
+@inject IFIleUpload FileUpload;
+@inject NavigationManager NavManager;
+@attribute [Authorize(Roles = CommonFiles.SD.Role_Admin)]
+
+<div class="row mt-2 mb-5">
+    <h3 class="card-title text-info mb-3 ml-3">@Title вила</h3>
+    <div class="card">
+        <div class="card-body">
+            <EditForm Model="@RoomModel" OnValidSubmit="HandleUpsertVilla">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <div class="form-group">
+                    <label>Име</label>
+                    <InputText @bind-Value="@RoomModel.Name" class="form-control"></InputText>
+                </div>
+
+                <div class="form-group">
+                    <label>Заетост</label>
+                    <InputNumber @bind-Value="RoomModel.Occupancy" class="form-control"></InputNumber>
+                </div>
+
+                <div class="form-group">
+                    <label>Цена</label>
+                    <InputNumber @bind-Value="RoomModel.RegularRate" class="form-control"></InputNumber>
+                </div>               
+
+                <div class="form-group">
+                    <label>Описание</label>
+                    <InputTextArea @bind-Value="RoomModel.Description" class="form-control"></InputTextArea>
+                </div>   
+
+                <div class="form-group" style="padding-top:70px">
+                    <InputFile OnChange="HandleImageUpload" multiple></InputFile>
+                    <div class="row">
+
+                        @if (RoomModel.ImageUrls != null && RoomModel.ImageUrls.Count > 0)
+                        {
+                            int serial = 1;
+                            foreach (var roomImage in RoomModel.ImageUrls)
+                            {
+                                <div class="col-md-2 mt-3">
+                                    <div class="room-image" style="background: url('@roomImage')  50% 50%">
+                                        <span class="room-image-title">@serial</span>
+                                    </div>
+                                    <button type="button" @onclick="()=>DeleteImage(roomImage)" class="btn btn-outline-danger btn-block mt-4"> Delete  </button>
+
+                                </div>
+                                serial++;
+                            }
+                        }
+                    </div>
+                </div>
+                <br />
+
+                <div class="form-group">
+                    <button class="btn btn-primary">@Title Вила</button>
+                    <NavLink href="room" class="btn btn-outline-secondary"> Go Back</NavLink>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+
+    // За провекр а изобрзяване актуализирането
+    [Parameter]
+    public int? Id { get; set; }
+    private string Title { get; set; } = "Създаване";
+
+    private RoomDTO RoomModel { get; set; } = new RoomDTO();
+    private RoomImageDTO RoomImage { get; set; } = new RoomImageDTO();
+
+    private List<string> DeletedImageNames { get; set; } = new List<string>();
+
+    [CascadingParameter]
+    public Task<AuthenticationState> AuthenticationState{ get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {  
+        if (Id != null)
+        {
+            Title = "Актуализиране на ";
+            RoomModel = await RoomRepo.GetRoom(Id.Value);
+
+            if (RoomModel.RoomImages != null)
+            {
+                RoomModel.ImageUrls = RoomModel.RoomImages.Select(x => x.ImageUrl).ToList();
+            }
+        }
+        else
+        {
+            RoomModel = new RoomDTO();
+        }
+    }
+
+    private async Task HandleUpsertVilla()
+    {
+        try
+        {
+            // Първо трябва да се провери дали стаята съществува
+            var roomDetails = await RoomRepo.IsRoomUnique(RoomModel.Name, RoomModel.Id);
+
+            if (roomDetails != null)
+            {
+                await JSRun.InvokeVoidAsync("ShowSwal", "error", "Вече има вила с такова име!");
+                return;
+            }
+
+            if (RoomModel.Id != 0 && Title == "Актуализиране на ")
+            {
+                var updatedRoom = await RoomRepo.UpdateRoom(RoomModel.Id, RoomModel);
+
+                if (RoomModel.ImageUrls != null && RoomModel.ImageUrls.Any())
+                {
+                    if (DeletedImageNames != null && DeletedImageNames.Any())
+                    {
+                        foreach(var deletedImgName in DeletedImageNames)
+                        {
+                            var imgName = deletedImgName.Replace($"{NavManager.BaseUri}RoomImages/", "");
+
+                            var result = FileUpload.DeleteFile(imgName);
+                            await ImageRepo.DeleteRoomImageByImageUrl(deletedImgName);
+                        }
+                    }
+                    await AddRoomImage(updatedRoom);
+                }
+                await JSRun.InvokeVoidAsync("ShowSwal", "success", "Данните са актуализирани успешно!");
+
+
+                //update
+                //var updatedRoom = await RoomRepo.UpdateRoom(RoomModel.Id, RoomModel);
+
+                //if (RoomModel.ImageUrls != null && RoomModel.ImageUrls.Any())
+                //{
+                //    await AddRoomImage(updatedRoom);
+                //}
+
+                //await JSRun.InvokeVoidAsync("ShowSwal", "success", "Villa updated.");
+            }
+            else
+            {
+                //create
+                // При добавяне на нова стая директно се извиква модела;
+                var newRoom = await RoomRepo.CreateRoom(RoomModel);
+                await AddRoomImage(newRoom);
+                await JSRun.InvokeVoidAsync("ShowSwal", "success", "Вилата е създадена успешна!");
+
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRun.ToastrError(ex.Message);
+        }
+        // При създаване на стая се препраща в  предната страница
+        NavManager.NavigateTo("room");
+
+    }
+    private async Task HandleImageUpload(InputFileChangeEventArgs eventArgs)
+    {
+        try
+        {
+            var images = new List<string>();
+            if (eventArgs.GetMultipleFiles().Count > 0)
+            {
+                foreach (var file in eventArgs.GetMultipleFiles())
+                {
+                    System.IO.FileInfo fileInfo = new System.IO.FileInfo(file.Name);
+
+                    if (fileInfo.Extension.ToLower() == ".jpg" ||
+                          fileInfo.Extension.ToLower() == ".png" ||
+                           fileInfo.Extension.ToLower() == ".jpeg")
+                    {
+                        // като се добави в старт уп fileUpload може да се качват снимки
+                        var uploatedImagePath = await FileUpload.UploadFile(file);
+                        images.Add(uploatedImagePath);
+                    }
+                    else
+                    {
+                        await JSRun.ToastrError("Моля изберете само jpg,png or jpeg файлове.");
+                        return;
+                    }
+                }
+
+                if (images.Any())
+                {
+                    // Чрез добавянето на ImageUrls в Room може да се покажат на екрана
+
+                    if (RoomModel.ImageUrls != null && RoomModel.ImageUrls.Any())
+                    {
+                        RoomModel.ImageUrls.AddRange(images);
+                    }
+                    else
+                    {
+                        RoomModel.ImageUrls = new List<string>();
+                        RoomModel.ImageUrls.AddRange(images);
+                    }
+                }
+                else
+                {
+                    await JSRun.ToastrError("Качването на файл е неуспешно.");
+                    return;
+
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await JSRun.ToastrError(ex.Message);
+        }
+
+    }
+
+    private async Task AddRoomImage(RoomDTO details)
+    {
+        foreach (var imageUrl in RoomModel.ImageUrls)
+        {
+            if (RoomModel.RoomImages == null ||
+                RoomModel.RoomImages.Where(x => x.ImageUrl == imageUrl).Count() == 0)
+            {
+                RoomImage = new RoomImageDTO()
+                    {
+                        RoomId = details.Id,
+                        ImageUrl = imageUrl
+                    };
+                await ImageRepo.CreateRoomImage(RoomImage);
+            }
+        }
+    }
+
+    internal async Task DeleteImage(string imageUrl)
+
+    {
+        try
+        {
+            //Изтриване при създаване
+
+            var imgIndex = RoomModel.ImageUrls.FindIndex(index => index == imageUrl);
+            var imgName = imageUrl.Replace($"RoomImages/", "");
+
+            if (RoomModel.Id == 0 && Title == "Създаване")
+            {
+                var result = FileUpload.DeleteFile(imgName);
+            }
+            else
+            {
+                DeletedImageNames ??= new List<string>();
+                DeletedImageNames.Add(imageUrl);
+            }
+
+            // До този ред снимките са изтрити от траекторията. но не се показват на view-to
+            //Следващия ред позволява това
+            RoomModel.ImageUrls.RemoveAt(imgIndex);
+
+        }
+        catch (Exception ex)
+        {
+            await JSRun.ToastrError(ex.Message);
+        }
+    }
+}

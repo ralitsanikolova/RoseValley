@@ -1,0 +1,83 @@
+﻿@page "/amenity/create"
+@page "/amenity/edit/{Id:int}"
+@using Models;
+@using Business.Repository.IRepository;
+@inject IAmenityRepository AmenityRepo
+@inject NavigationManager NavManager;
+@inject IJSRuntime JSRun;
+@attribute [Authorize(Roles = CommonFiles.SD.Role_Admin)]
+
+<div class="row mt-2 mb-5">
+    <h3 class="card-title text-info mb-3 ml-3">@Title удобство</h3>
+    <div class="card">
+        <div class="card-body">
+            <EditForm Model="@AmenityModel" OnValidSubmit="HandleAmenityUpsert">
+                <DataAnnotationsValidator />
+                <ValidationSummary />
+                <div class="form-group">
+                    <label>Име</label>
+                    <InputText @bind-Value="@AmenityModel.Name" class="form-control"></InputText>
+                </div>
+                <div class="form-group">
+                    <label>Описание</label>
+                    <InputText @bind-Value="@AmenityModel.Description" class="form-control"></InputText>
+                </div>
+                <div class="form-group">
+                    <label>Икона</label>
+                    <InputText @bind-Value="@AmenityModel.Icon" class="form-control"></InputText>
+                </div>
+
+                <br />
+                <div class="form-group">
+                    <button class="btn btn-primary"> @Title удобство</button>
+                    <NavLink href="amenity" class="btn btn-secondary"> Назад</NavLink>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+    private string Title { get; set; } = "Създаване ";
+    public bool IsProcessingStart { get; set; } = false;
+
+
+    private AmenityDTO AmenityModel { get; set; } = new AmenityDTO();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id != null)
+        {
+            Title = "Актуализиране на ";
+            AmenityModel = await AmenityRepo.GetAmenity(Id.Value);
+        }
+        else
+        {
+            AmenityModel = new AmenityDTO();
+        }
+    }
+    private async Task HandleAmenityUpsert()
+    {
+        var amenityUnique = await AmenityRepo.IsAmenityUnique(AmenityModel.Name, AmenityModel.Id);
+
+        if (amenityUnique != null)
+        {
+            await JSRun.ToastrError("Удобството вече съществува.");
+            return;
+        }
+
+        if (AmenityModel.Id != 0 && Title == "Актуализиране на ")
+        {
+            var updateAmenityResult = await AmenityRepo.UpdateAmenity(AmenityModel.Id, AmenityModel);
+            await JSRun.InvokeVoidAsync("ShowSwal", "success", "Данните са актуализирани успешно.");
+        }
+        else
+        {
+            var result = await AmenityRepo.CreateAmenity(AmenityModel);
+            await JSRun.InvokeVoidAsync("ShowSwal", "success", "Данните са създадени успешно.");
+        }
+        NavManager.NavigateTo("amenity");
+    }
+}

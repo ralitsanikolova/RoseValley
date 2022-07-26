@@ -1,0 +1,155 @@
+﻿@page "/room"
+@using Models;
+@using Business.Repository.IRepository;
+@using System.IO;
+@using RoseValleyServer.Service.ExcellExport;
+@using NPOI.SS.UserModel;
+@using NPOI.XSSF.UserModel;
+@inject IRoomRepository RoomRepo;
+@inject RoseValleyServer.Service.IService.IFIleUpload Uploads;
+@inject IJSRuntime JsRun;
+@inject NavigationManager NavManager;
+@attribute [Authorize(Roles = CommonFiles.SD.Role_Admin)]
+
+<div class="row mt-4">
+    <div class="col-8">
+        <h4 class="card-title text-info">Rose Valley Villas's</h4>
+    </div>
+    <div class="col-3 offset-1">
+        <NavLink href="room/create" class="btn-info form-control">Добави нова вила</NavLink>
+        <button class="btn btn-primary" @onclick="@(async ()=> {await GenerateExcel();})">Изтегли документ </button>
+    </div>
+</div>
+<div class="row mt-4">
+    <div class="col-12">
+        <table class="table table-bordered table-hover">
+            <thead>
+                <tr>
+                    <th>Име</th>
+                    <th>Заетост</th>
+                    <th>Цена</th>
+                    <th> </th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Rooms.Any())
+                {
+                    foreach (var room in Rooms)
+                    {
+                        <tr>
+                            <td>@room.Name</td>
+                            <td>@room.Occupancy</td>
+                            <td>@room.RegularRate.ToString() лв.</td>
+                            <td>
+                                <NavLink href="@($"room/edit/{room.Id}")" class="btn btn-primary">Актуализиране</NavLink>
+                                <button class="btn btn-secondary " @onclick="()=>HandleDelete(room.Id)">Изтриване</button>
+                            </td>
+                        </tr>
+                    }
+                }
+                else
+                {
+                    <tr>
+                        <td colspan="5">Няма добавени вили в системата.</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+<DeleteConfirmationComponent IsParentProcessing="IsProssesing" ConfirmationChanged="ConfirmDelete"></DeleteConfirmationComponent>
+
+@code {
+    private IEnumerable<RoomDTO> Rooms { get; set; } = new List<RoomDTO>();
+
+    //добавя се нулева стойност, която се променя при извикване
+    private int? DeleteRoom { get; set; } = null;
+
+    private IEnumerable<RoomImageDTO> Images { get; set; } = new List<RoomImageDTO>();
+    private bool IsProssesing { get; set; } = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Rooms = await RoomRepo.GetAllRooms();
+    }
+
+    private async Task HandleDelete(int roomId)
+    {
+        DeleteRoom = roomId;
+        await JsRun.InvokeVoidAsync("ShowDeleteConfirm");
+    }
+
+    public async Task ConfirmDelete(bool isConfirmed)
+    {
+        IsProssesing = true;
+        if (isConfirmed && DeleteRoom != null)
+        {
+            RoomDTO room = await RoomRepo.GetRoom(DeleteRoom.Value);
+
+            await RoomRepo.DeleteRoom(DeleteRoom.Value);
+            await JsRun.ToastrSuccess("Данните са изтрити успешно!");
+            Rooms = await RoomRepo.GetAllRooms();
+        }
+
+        await JsRun.InvokeVoidAsync("HideDeleteConfirm");
+        IsProssesing = false;
+    }
+
+    public async Task GenerateExcel()
+    {
+        var export = await RoomRepo.GetAllRooms();
+
+        IWorkbook workbook = new XSSFWorkbook();
+        var dataFormat = workbook.CreateDataFormat();
+        var dataStyle = workbook.CreateCellStyle();
+        dataStyle.DataFormat = dataFormat.GetFormat("MM/dd/yyyy HH:mm:ss");
+
+        ISheet worksheet = workbook.CreateSheet("Sheet1");
+
+        int rowNumber = 0;
+        IRow row = worksheet.CreateRow(rowNumber++);
+
+        ICell cell = row.CreateCell(0);
+        cell.SetCellValue("VillaId");
+
+        cell = row.CreateCell(1);
+        cell.SetCellValue("Name");
+
+           cell = row.CreateCell(2);
+        cell.SetCellValue("Occupancy");
+
+        cell = row.CreateCell(3);
+        cell.SetCellValue("Description");
+
+        cell = row.CreateCell(4);
+        cell.SetCellValue("Price");
+
+        foreach (var room in export)
+        {
+            row = worksheet.CreateRow(rowNumber++);
+
+            cell = row.CreateCell(0);
+            cell.SetCellValue(room.Id);
+
+            cell = row.CreateCell(1);
+            cell.SetCellValue(room.Name);
+
+            cell = row.CreateCell(2);
+            cell.SetCellValue(room.Occupancy);
+
+            cell = row.CreateCell(3);
+            cell.SetCellValue(room.Description);
+
+             cell = row.CreateCell(4);
+            cell.SetCellValue(room.RegularRate);
+
+        }
+
+        MemoryStream ms = new MemoryStream();
+        workbook.Write(ms);
+        byte[] bytes = ms.ToArray();
+        ms.Close();
+
+        await JsRun.SaveAsFileAsync("Room List", bytes, "application/vnd.ms-excel");
+    }
+}

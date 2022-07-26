@@ -1,0 +1,180 @@
+﻿@page "/villas/details/{Id:int}"
+@using Models
+@using RoseValleyWebAssembly.Model.ViewModel
+@inject IJSRuntime JsRun
+@inject ILocalStorageService LocStorage
+@inject IRoomBookingSevice BookService
+@inject IRoomService RoomService
+
+
+@inject NavigationManager NavManager
+
+@if (Booking?.BookingDetails?.Room == null)
+{
+    <div class="lds-ring"><div></div><div></div><div></div><div></div></div>
+}
+else
+{
+    <div class="mt-4 mx-4 px-0 px-md-5 mx-md-5">
+        <div class="row p-2 my-3 " style="border-radius:20px; ">
+            <div class="col-12 col-lg-7 p-4" style="border: 1px solid #fff">
+                <div class="row px-2 text-success border-bottom">
+                    <div class="col-8 py-1"><p style="font-size:x-large;margin:0px;">Избрана вила </p></div>
+                    <div class="col-4 p-0"><a href="villas" class="btn btn-secondary btn-block">Назад</a></div>
+                </div>
+
+                <div class="row">
+                    <div class="col-6">
+                        <div id="" class="carousel slide mb-4 m-md-3 m-0 pt-3 pt-md-0" data-ride="carousel">
+                            <div id="carouselExampleIndicators" class="carousel slide" data-ride="carousel">
+                                <ol class="carousel-indicators">
+                                    <li data-target="#carouselExampleIndicators" data-slide-to="0" class="active"></li>
+                                    <li data-target="#carouselExampleIndicators" data-slide-to="1"></li>
+                                </ol>
+                                <div class="carousel-inner">
+                                    <div class="carousel-item active">
+                                        <img class="d-block w-100" src="https://artemida.bg/wp-content/uploads/2018/11/img-houses2-min.jpg" alt="First slide">
+                                    </div>
+                                </div>
+                                <a class="carousel-control-prev" href="#carouselExampleIndicators" role="button" data-slide="prev">
+                                    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                                </a>
+                                <a class="carousel-control-next" href="#carouselExampleIndicators" role="button" data-slide="next">
+                                    <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <br />
+                </div>
+
+
+
+
+                <div class="row p-2">
+                    <div class="col-12">
+                        <p class="card-title text-warning" style="font-size:xx-large">@Booking.BookingDetails.Room.Name</p>
+                        <p class="card-text" style="font-size:large">
+                            @((MarkupString)@Booking.BookingDetails.Room.Description)
+                        </p>
+                    </div>
+
+                </div>
+                <div class="row p-3">
+                    <span class="float-right pt-4">
+                        <span class="float-right">Максимална заетост: @Booking.BookingDetails.Room.Occupancy.ToString() възрастни </span><br />
+
+                        @if (Booking.BookingDetails.Room.TotalDays > 1)
+                        {
+                            <span class="float-right">Цена за @Booking.BookingDetails.Room.TotalDays вечери</span>
+                        }
+                        else
+                        {
+                            <span class="float-right">Цена за @Booking.BookingDetails.Room.TotalDays вечер</span>
+                        }
+                    </span>
+
+                    <h4 class="text-warning font-weight-bold pt-5 pl-5">лв. <span style="border-bottom:1px solid #ff6a00"> @Booking.BookingDetails.Room.TotalAmount.ToString()</span></h4>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-5 p-4 2 mt-4 mt-md-0" style="border: 1px solid #fff;">
+                <EditForm Model="Booking" OnValidSubmit="HandleBookingVilla" class="container">
+                    <div class="row px-2 text-success border-bottom"><div class="col-7 py-1"><p style="font-size:x-large;margin:0px;">Попълнете необходимите полета</p></div></div>
+
+                    <div class="form-group pt-2">
+                        <label class="text-warning">Име</label>
+                        <InputText @bind-Value="Booking.BookingDetails.Name" type="text" class="form-control" />
+                    </div>
+                    <div class="form-group pt-2">
+                        <label class="text-warning">Телефон</label>
+                        <InputText @bind-Value="Booking.BookingDetails.Phone" type="text" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label class="text-warning">Имейл</label>
+                        <InputText @bind-Value="Booking.BookingDetails.Email" type="text" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label class="text-warning">Дата на настаняване</label>
+                        <InputDate @bind-Value="Booking.BookingDetails.CheckIn" disabled class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label class="text-warning">Дата на напускане</label>
+                        <InputDate @bind-Value="Booking.BookingDetails.CheckOut" disabled="disabled" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label class="text-warning">Брой вечери</label>
+                        <select class="form-control" value="@NumberOfNight">
+                            @for (var i = 1; i <= 30; i++)
+                            {
+                                @* populated date to be shown*@
+                                if (i == NumberOfNight)
+                                {
+                                    <option value="@i" selected="selected">@i</option>
+                                }
+                                <option value="@i">@i</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-success form-control">Резервация</button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    public Booking Booking { get; set; } = new Booking();
+    private int NumberOfNight { get; set; } = 1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Booking.BookingDetails = new RoomBookingDTO();
+
+            if (Id != null)
+            {
+                if (await LocStorage.GetItemAsync<Home>(SD.LocalStorageVillas) != null)
+                {
+                    var info = await LocStorage.GetItemAsync<Home>(SD.LocalStorageVillas);
+                    Booking.BookingDetails.Room = await RoomService.GetRoomDetail(Id.Value, info.StartDt.ToString("MM/dd/yyyy"), info.EndDt.ToString("MM/dd/yyyy"));
+
+                    Booking.BookingDetails.CheckIn = info.StartDt;
+                    Booking.BookingDetails.CheckOut = info.EndDt;
+                    Booking.BookingDetails.Room.TotalDays = info.NumberOfNights;
+                    Booking.BookingDetails.Room.TotalAmount = info.NumberOfNights * Booking.BookingDetails.Room.RegularRate;
+
+                }
+                else
+                {
+                    Booking.BookingDetails.Room = await RoomService.GetRoomDetail(Id.Value,
+                      DateTime.Now.ToString("MM/dd/yyyy"), DateTime.Now.AddDays(1).ToString("MM/dd/yyyy"));
+                    NumberOfNight = 1;
+                    Booking.BookingDetails.CheckIn = DateTime.Now;
+                    Booking.BookingDetails.CheckOut = DateTime.Now.AddDays(1);
+                    Booking.BookingDetails.Room.TotalDays = 1;
+                    Booking.BookingDetails.Room.TotalAmount = Booking.BookingDetails.Room.RegularRate;
+
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await JsRun.ToastrError(ex.Message);
+        }
+    }
+
+
+    public async Task HandleBookingVilla()
+    {
+     //  var result = await BookService.BookingVilla(Booking.BookingDetails);
+        NavManager.NavigateTo("success");
+    }
+    }

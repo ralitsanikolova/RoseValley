@@ -1,0 +1,172 @@
+﻿@page "/villas"
+@using RoseValleyWebAssembly.Model.ViewModel
+@using Models
+@inject ILocalStorageService LocStorage
+@inject IJSRuntime JsRun
+@inject IRoomService RoomServ
+
+
+@if (Villas != null && Villas.Any())
+{
+    <EditForm Model="HomeModel" OnValidSubmit="SaveSearchInfo " class="bg-light">
+        <div class="pt-3 pb-2 px-5 mx-1 mx-md-0 bg-secondary">
+            <DataAnnotationsValidator />
+            <div class="row px-3 mx-3">
+                <div class="col-6 col-md-4">
+                    <div class="form-group">
+                        <label class="text-warning">Дата на настаняване </label>
+                        <InputDate @bind-Value="HomeModel.StartDt" class="form-control" />
+                    </div>
+                </div>
+                <div class="col-6 col-md-4">
+                    <div class="form-group">
+                        <label class="text-warning">Дата на напускане</label>
+                        <input @bind="HomeModel.EndDt" disabled="disabled" readonly="readonly" type="date" class="form-control" />
+                    </div>
+                </div>
+                <div class=" col-4 col-md-2">
+                    <div class="form-group">
+                        <label class="text-warning">Брой вечери</label>
+                        <select class="form-control" @bind="HomeModel.NumberOfNights">
+                            <option value="Select" selected disabled="disabled">Изберете брой </option>
+                            @for (var i = 1; i <= 30; i++)
+                            {
+                                <option value="@i">@i</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="col-8 col-md-2">
+                    <div class="form-group" style="margin-top: 1.9rem !important;">
+
+                        <input type="submit" value="Промени" class="btn btn-success btn-block form-control" />
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </EditForm>
+
+    <div class="mt-4 mx-4 px-0 px-md-5 mx-md-5">
+
+        @foreach (var villa in Villas)
+        {
+            <div class="row p-2 my-3 " style="border-radius:20px; border: 1px solid #ffffff">
+                <div class="col-12 col-lg-3 col-md-4">
+                    <div id="carouselExampleIndicators" class="carousel slide mb-4 m-md-3 m-0 pt-3 pt-md-0" data-ride="carousel">
+                        <ol class="carousel-indicators">
+                            <li data-target="#carouselExampleIndicators" data-slide-to="0" class="active"></li>
+                            <li data-target="#carouselExampleIndicators" data-slide-to="1"></li>
+                            <li data-target="#carouselExampleIndicators" data-slide-to="2"></li>
+                            <li data-target="#carouselExampleIndicators" data-slide-to="3"></li>
+                            <li data-target="#carouselExampleIndicators" data-slide-to="4"></li>
+
+                        </ol>
+                        <div class="carousel-inner">
+                            <div class="carousel-item active">
+                                <img class="d-block w-100" src="https://www.rooms.bg/photos/144591.jpgg" alt="First slide">
+                            </div>
+                            <div class="carousel-item">
+                                <img class="d-block w-100" src="https://www.chaikatravel.com/wp-content/uploads/2020/07/kompleks-artemida-4581.jpg" alt="Second slide">
+                            </div>
+                            <div class="carousel-item">
+                                <img class="d-block w-100" src="https://imgrabo.com/pics/companies/f3bc857c0ac85e14deb711f761a6fce7.jpg" alt="Third slide">
+                            </div>
+                            <div class="carousel-item">
+                                <img class="d-block w-100" src="https://bulreisen.com/wp-content/uploads/2020/06/Artemida_interior-11.jpeg" alt="Fourth slide">
+                            </div>
+                            <div class="carousel-item">
+                                <img class="d-block w-100" src="https://abc.bg/f/pictures/3/19e2664e1d7f3d8de4e1bfc26f1bccd8.jpg" alt="Fift slide">
+                            </div>
+                        </div>
+                        <a class="carousel-control-prev" href="#carouselExampleIndicators" role="button" data-slide="prev">
+                            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                        </a>
+                        <a class="carousel-control-next" href="#carouselExampleIndicators" role="button" data-slide="next">
+                            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                        </a>
+                    </div>
+                </div>
+                <div class="col-12 col-lg-9 col-md-8">
+                    <div class="row pt-3">
+                        <div class="col-12 col-lg-8">
+                            <p class="card-title text-warning" style="font-size:xx-large"> @villa.Name </p>
+                            <p class="card-text">
+                                @((MarkupString)villa.Description)
+                            </p>
+                        </div>
+                        <div class="col-12 col-lg-4">
+                            <div class="row pb-3 pt-2">
+                                <div class="col-12 col-lg-11 offset-lg-1">
+
+                                    <a href="@($"villas/details/{villa.Id}")" class="btn btn-success btn-block">Резервирай</a>
+
+                                </div>
+                            </div>
+                            <div class="row ">
+                                <div class="col-12 pb-5">
+                                    <span class="float-right">
+                                        <span class="float-right">Максимална заетост @villa.Occupancy </span><br />
+                                        <h4 class="text-warning font-weight-bold pt-4">@villa.TotalAmount <span style="border-bottom:1px solid #ff6a00">лв.</span></h4>
+                                        <span class="float-right">Цена за @villa.TotalDays вечери</span>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="lds-ring"><div></div><div></div><div></div><div></div></div>
+}
+
+@code {
+    // Retrive details from searching
+    private Home HomeModel { get; set; } = new Home();
+    public IEnumerable<RoomDTO> Villas { get; set; } = new List<RoomDTO>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            if (await LocStorage.GetItemAsync<Home>(SD.LocalStorageVillas) != null)
+            {
+                HomeModel = await LocStorage.GetItemAsync<Home>(SD.LocalStorageVillas);
+            }
+            else
+            {
+                //Ако не е избрано , се използва случай с 1 нощувка
+                HomeModel.NumberOfNights = 1;
+            }
+
+            await LoadVillas();
+        }
+        catch (Exception ex)
+        {
+            JsRun.ToastrError(ex.Message);
+        }
+    }
+
+    private async Task LoadVillas()
+    {
+        Villas = await RoomServ.GetRooms(HomeModel.StartDt.ToString("MM/dd/yyyy"), HomeModel.EndDt.ToString("MM/dd/yyyy"));
+        foreach (var villa in Villas)
+        {
+            villa.TotalDays = HomeModel.NumberOfNights;
+            villa.TotalAmount = villa.RegularRate * HomeModel.NumberOfNights;
+        }
+
+    }
+    private async Task SaveSearchInfo()
+    {
+        HomeModel.EndDt = HomeModel.StartDt.AddDays(HomeModel.NumberOfNights);
+        await LocStorage.SetItemAsync(SD.LocalStorageVillas, HomeModel);
+        await LoadVillas();
+
+    }
+}

@@ -1,0 +1,42 @@
+﻿@page "/success"
+@using Blazored.LocalStorage
+@using CommonFiles
+@using Models
+@using RoseValleyWebAssembly.Service.IService
+@inject ILocalStorageService LocStorage
+@inject IRoomBookingSevice BookService
+
+
+<div class="container">
+<div class="row mt-4 pt-4">
+    <div class="col-10 offset-1 text-center">
+        <h2 class="text-warning">Успешна резервация</h2>
+        <p>Вилата е запазена успешно.Очаква ме Ви с нетърпение!</p>
+    </div>
+    <div class="col-8 offset-2">
+        <img src="https://d2d0i7prjlvkf.cloudfront.net/sites/default/files/2021-11/beautiful-bulgarian-damask-roses-sofia.jpg" width="100%" style="border-radius:30px;" />
+    </div>
+</div>      
+</div>
+
+@*@code {
+    private bool IsBookingComplete { get; set; } = false;
+    private int BookingId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var bookingResult = await LocStorage.GetItemAsync<RoomBookingDTO>(SD.LocalBookingDetails);
+        BookingId = bookingResult.Id;
+
+
+        //after final update remove from local storage 
+        if(bookingResult.Status == SD.Status_Booked)
+        {
+            await LocStorage.RemoveItemAsync(SD.LocalBookingDetails);
+            await LocStorage.RemoveItemAsync(SD.LocalBookingDetails);
+        }
+
+        IsBookingComplete = true;
+    }
+}
+*@
